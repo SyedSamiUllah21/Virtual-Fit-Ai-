@@ -1,0 +1,7 @@
+{
+  "name": "VirtualFit.Ai - High-End Wardrobe Assistant",
+  "description": "An elegant, AI-powered virtual try-on dashboard for curated fashion collections.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

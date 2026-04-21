@@ -1,0 +1,29 @@
+# OS and editor files
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+
+# Python virtual environment and cache
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Backend secrets and local artifacts
+Code/.env
+Code/.env.*
+!Code/.env.example
+Code/_tmp_*.jpg
+Code/_debug_*.jpg
+
+# Frontend dependencies, builds, and local env
+Frontend/node_modules/
+Frontend/dist/
+Frontend/.env
+Frontend/.env.*
+
+# Logs
+*.log
