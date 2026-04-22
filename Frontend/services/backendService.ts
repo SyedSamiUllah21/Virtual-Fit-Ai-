@@ -1,12 +1,12 @@
 ﻿/**
  * backendService.ts
  * Typed helpers that talk to the Flask backend.
- * Uses VITE_BACKEND_URL when provided, otherwise defaults to local Flask.
+ * Hardcoded to Render production URL to bypass Vercel build injection issues.
  */
 
-const configuredBackendUrl = ((import.meta.env.VITE_BACKEND_URL as string) || '').trim();
-const runtimeHost = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-const BASE = configuredBackendUrl || `${window.location.protocol}//${runtimeHost}:5000`;
+// --- THE SLEDGEHAMMER FIX ---
+const BASE = 'https://virtual-fit-ai.onrender.com';
+// ----------------------------
 
 // ---------------------------------------------------------------------------
 // Types
@@ -64,7 +64,7 @@ export interface DashboardResult {
 }
 
 // ---------------------------------------------------------------------------
-// login â€” POST /login
+// login — POST /login
 // ---------------------------------------------------------------------------
 export async function login(username: string, password: string): Promise<LoginResult> {
     const res = await fetch(`${BASE}/login`, {
@@ -76,7 +76,7 @@ export async function login(username: string, password: string): Promise<LoginRe
 }
 
 // ---------------------------------------------------------------------------
-// register â€” POST /register
+// register — POST /register
 // ---------------------------------------------------------------------------
 export async function register(
     username: string,
@@ -95,7 +95,7 @@ export async function register(
 
 
 // ---------------------------------------------------------------------------
-// explainSize â€” POST /explain-size  (size explanation + color recommendations)
+// explainSize — POST /explain-size  (size explanation + color recommendations)
 // ---------------------------------------------------------------------------
 export async function explainSize(
     weight: number,
@@ -113,7 +113,7 @@ export async function explainSize(
 
 
 // ---------------------------------------------------------------------------
-// fetchDashboard â€” GET /dashboard?user_id=...  (personalised recommendations)
+// fetchDashboard — GET /dashboard?user_id=...  (personalised recommendations)
 // ---------------------------------------------------------------------------
 export async function fetchDashboard(userId: string): Promise<DashboardResult> {
     const res = await fetch(`${BASE}/dashboard?user_id=${encodeURIComponent(userId)}`);
@@ -121,7 +121,7 @@ export async function fetchDashboard(userId: string): Promise<DashboardResult> {
 }
 
 // ---------------------------------------------------------------------------
-// checkout â€” POST /checkout
+// checkout — POST /checkout
 // ---------------------------------------------------------------------------
 export async function checkout(userId: string, productId: string): Promise<{ success: boolean; message?: string; error?: string }> {
     const res = await fetch(`${BASE}/checkout`, {
@@ -133,7 +133,7 @@ export async function checkout(userId: string, productId: string): Promise<{ suc
 }
 
 // ---------------------------------------------------------------------------
-// chat â€” POST /chat
+// chat — POST /chat
 // ---------------------------------------------------------------------------
 export async function chat(
     userId: string | undefined,
@@ -187,7 +187,7 @@ export async function chat(
 }
 
 // ---------------------------------------------------------------------------
-// detectSkinTone â€” POST /detect-skin-tone  (AI photo analysis)
+// detectSkinTone — POST /detect-skin-tone  (AI photo analysis)
 // ---------------------------------------------------------------------------
 export interface SkinToneResult {
     success: boolean;
@@ -213,7 +213,7 @@ export async function detectSkinTone(imageData: string, userId?: string): Promis
 }
 
 // ---------------------------------------------------------------------------
-// generateVTON â€” POST /vton-generate  (multi-provider backend VTON)
+// generateVTON — POST /vton-generate  (multi-provider backend VTON)
 // ---------------------------------------------------------------------------
 export interface VTONResult {
     success: boolean;
@@ -278,6 +278,3 @@ export async function generateVTON(
         window.clearTimeout(timeoutId);
     }
 }
-
-
-

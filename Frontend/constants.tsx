@@ -1,6 +1,7 @@
-
-
 import { Product } from './types';
+
+// 🔨 THE SLEDGEHAMMER: Hardcoding the production backend URL
+export const API_URL = 'https://virtual-fit-ai.onrender.com';
 
 export const FRONTEND_TO_BACKEND_PRODUCT_ID: Record<string, string> = {
   m1: 'M-UP-01',
