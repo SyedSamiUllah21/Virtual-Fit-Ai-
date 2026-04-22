@@ -8,13 +8,14 @@ Description: Flask-based REST API with size calculation logic and recommendation
 ============================================================================
 """
 
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import mysql.connector
-from mysql.connector import Error
+import pymysql
+import pymysql.cursors
+from pymysql import Error
 import hashlib
 import uuid
-import os
 import json
 import io
 import base64
@@ -289,27 +290,20 @@ CORS(
 # DATABASE CONFIGURATION
 # ============================================================================
 
-def _get_safe_db_port():
-    """Ensure port is strictly an integer, stripping any Render env var quotes/spaces."""
-    port_raw = os.getenv('DB_PORT', '25060')
-    port_clean = str(port_raw).replace('"', '').replace("'", "").strip()
-    try:
-        return int(port_clean)
-    except ValueError:
-        return 25060
-
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost').strip(),
-    'user': os.getenv('DB_USER', 'root').strip(),
-    'password': os.getenv('DB_PASSWORD', '').strip(),
-    'database': os.getenv('DB_NAME', 'fashion_recommendation_db').strip(),
-    'port': _get_safe_db_port()
+    'host': 'mysql-30df46ff-syedsamiullah596-5ea5.d.aivencloud.com',
+    'user': 'avnadmin',
+    'password': os.getenv('DB_PASSWORD'),
+    'database': 'defaultdb',
+    'port': 26553,
+    'ssl': {}
 }
 
+
 def get_db_connection():
-    """Create and return a database connection"""
+    """Create and return a database connection."""
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        connection = pymysql.connect(**DB_CONFIG)
         return connection
     except Error as e:
         print(f"Database connection error: {e}")
@@ -416,7 +410,7 @@ def get_user_by_id(user_id: str) -> Optional[Dict]:
         return None
     
     try:
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
         cursor.execute("SELECT * FROM Users WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         return user
@@ -434,7 +428,7 @@ def get_last_purchase(user_id: str) -> Optional[Dict]:
         return None
     
     try:
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
         query = """
             SELECT ph.*, c.category, c.item_name, c.gender
             FROM Purchase_History ph
@@ -692,7 +686,7 @@ def get_dashboard():
             }), 500
 
         try:
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
 
             # Most recent purchase is used to prioritize recommendations users see first.
             last_purchase = get_last_purchase(user_id)
@@ -904,7 +898,7 @@ def login_user():
             }), 500
         
         try:
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
             query = "SELECT * FROM Users WHERE username = %s AND password_hash = %s"
             cursor.execute(query, (username, password_hash))
             user = cursor.fetchone()
@@ -1124,7 +1118,7 @@ def chat_with_ai():
         
         connection = get_db_connection()
         if connection:
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
             if product_id:
                 cursor.execute("SELECT * FROM Clothing WHERE product_id = %s", (product_id,))
                 product_info = cursor.fetchone() or {}
@@ -1242,7 +1236,7 @@ def prepare_vto():
             }), 500
         
         try:
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
             cursor.execute(
                 "SELECT * FROM Clothing WHERE product_id = %s",
                 (product_id,)
@@ -2040,7 +2034,7 @@ def generate_vton():
         connection = get_db_connection()
         if connection:
             try:
-                cursor = connection.cursor(dictionary=True)
+                cursor = connection.cursor(pymysql.cursors.DictCursor)
                 placeholders = ','.join(['%s'] * len(product_ids))
                 cursor.execute(
                     f"SELECT product_id, gender, category, item_name FROM Clothing WHERE product_id IN ({placeholders})",
@@ -2255,7 +2249,7 @@ def get_products():
         if not connection:
             return jsonify({'success': False, 'error': 'Database connection failed'}), 500
 
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor(pymysql.cursors.DictCursor)
         cursor.execute(
             "SELECT product_id as id, item_name as name, category, gender, price, stock_quantity FROM Clothing ORDER BY gender, category, product_id"
         )
@@ -2448,7 +2442,7 @@ def checkout():
             return jsonify({'success': False, 'error': 'Database connection failed'}), 500
             
         try:
-            cursor = connection.cursor(dictionary=True)
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
             
             # Check product
             cursor.execute("SELECT item_name, price FROM Clothing WHERE product_id = %s", (product_id,))
