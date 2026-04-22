@@ -131,13 +131,6 @@ def call_groq(messages, max_tokens=500, force_model=None, force_timeout_sec=None
     """
     Universal AI call via configured provider (OpenRouter or Groq).
     Uses http.client with explicit SSL to avoid Windows urllib DNS/getaddrinfo issues.
-    
-    Args:
-        messages: List of message dicts (OpenAI format). 
-                  For vision, use content=[{type: "image_url", ...}, {type: "text", ...}]
-        max_tokens: Max output tokens
-    Returns:
-        AI response text string, or raises Exception on failure
     """
     provider = (os.getenv("LLM_PROVIDER") or "openrouter").strip().lower()
     is_vision_request = _messages_include_image(messages)
@@ -296,12 +289,21 @@ CORS(
 # DATABASE CONFIGURATION
 # ============================================================================
 
+def _get_safe_db_port():
+    """Ensure port is strictly an integer, stripping any Render env var quotes/spaces."""
+    port_raw = os.getenv('DB_PORT', '25060')
+    port_clean = str(port_raw).replace('"', '').replace("'", "").strip()
+    try:
+        return int(port_clean)
+    except ValueError:
+        return 25060
+
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD', ''),
-    'database': os.getenv('DB_NAME', 'fashion_recommendation_db'),
-    'port': int(os.getenv('DB_PORT', 3306))
+    'host': os.getenv('DB_HOST', 'localhost').strip(),
+    'user': os.getenv('DB_USER', 'root').strip(),
+    'password': os.getenv('DB_PASSWORD', '').strip(),
+    'database': os.getenv('DB_NAME', 'fashion_recommendation_db').strip(),
+    'port': _get_safe_db_port()
 }
 
 def get_db_connection():
@@ -584,23 +586,6 @@ def build_chat_fallback_response(
 def calculate_size_endpoint():
     """
     Calculate and update user's size based on weight and height.
-    
-    Request Body:
-    {
-        "user_id": "uuid-string",
-        "weight": 80.5,
-        "height": 5.8
-    }
-    
-    Response:
-    {
-        "success": true,
-        "user_id": "uuid-string",
-        "weight_kg": 80.5,
-        "height_ft": 5.8,
-        "calculated_size": "L",
-        "message": "Size calculated and updated successfully"
-    }
     """
     try:
         data = request.get_json()
@@ -681,22 +666,6 @@ def calculate_size_endpoint():
 def get_dashboard():
     """
     Get personalized product recommendations based on purchase history.
-    
-    Logic:
-    - If NO purchase history: Return ALL 12 items
-    - If purchase history EXISTS: Return items matching the category of the last purchase
-    
-    Query Parameters:
-    - user_id: User identifier (required)
-    
-    Response:
-    {
-        "success": true,
-        "user_id": "uuid-string",
-        "has_purchase_history": true,
-        "last_purchase_category": "Upper",
-        "recommendations": [...]
-    }
     """
     try:
         user_id = request.args.get('user_id')
@@ -829,15 +798,6 @@ def get_dashboard():
 def register_user():
     """
     Register a new user
-    
-    Request Body:
-    {
-        "username": "john_doe",
-        "password": "secure_password",
-        "weight": 75.5,
-        "height": 5.8,
-        "skin_tone": "medium"
-    }
     """
     try:
         data = request.get_json() or {}
@@ -923,12 +883,6 @@ def register_user():
 def login_user():
     """
     Authenticate a user
-    
-    Request Body:
-    {
-        "username": "john_doe",
-        "password": "secure_password"
-    }
     """
     try:
         data = request.get_json()
@@ -1005,22 +959,6 @@ def health_check():
 def explain_size():
     """
     LLM-powered size explanation and color recommendations.
-    
-    Request Body:
-    {
-        "user_id": "uuid-string",
-        "weight": 80,
-        "height": 5.8,
-        "skin_tone": "medium"
-    }
-    
-    Response:
-    {
-        "success": true,
-        "calculated_size": "L",
-        "size_explanation": "...",
-        "color_recommendations": {...}
-    }
     """
     try:
         data = request.get_json()
@@ -1166,14 +1104,6 @@ def explain_size():
 def chat_with_ai():
     """
     Interactive chatbot endpoint powered by Groq.
-    
-    Request Body:
-    {
-        "user_id": "uuid-string",
-        "product_id": "M-UP-01",
-        "message": "Does this run large?",
-        "history": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]
-    }
     """
     try:
         data = request.get_json() or {}
@@ -1281,24 +1211,6 @@ def chat_with_ai():
 def prepare_vto():
     """
     Prepare data for Virtual Try-On (VTO) API integration.
-    
-    Request Body:
-    {
-        "user_id": "uuid-string",
-        "product_id": "M-UP-01"
-    }
-    
-    Response:
-    {
-        "success": true,
-        "vto_config": {
-            "product_id": "M-UP-01",
-            "product_name": "Tech-Wear Bomber",
-            "size": "L",
-            "user_measurements": {...},
-            "overlay_ready": true
-        }
-    }
     """
     try:
         data = request.get_json()
@@ -2268,7 +2180,7 @@ def generate_vton():
         else:
             print('[VTON] Image validation skipped (VTON_VALIDATION_ENABLED=false)')
 
-        # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ END VALIDATION Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+        # --- END VALIDATION ---
 
 
 
@@ -2329,7 +2241,7 @@ def generate_vton():
         return jsonify({'success': False, 'error': f'Server error: {str(e)}'}), 500
 
 # ============================================================================
-# ENDPOINT: GET /products Ã¢â‚¬â€ Return all products for the frontend
+# ENDPOINT: GET /products - Return all products for the frontend
 # ============================================================================
 
 @app.route('/products', methods=['GET'])
@@ -2417,20 +2329,6 @@ def detect_skin_tone():
     """
     Detect skin tone from an uploaded photo using Groq vision,
     then return the detected tone and matching color recommendations.
-
-    Request Body:
-    {
-        "image": "<base64-encoded-image-data>",
-        "user_id": "uuid-string" (optional)
-    }
-
-    Response:
-    {
-        "success": true,
-        "detected_skin_tone": "medium",
-        "confidence": "high",
-        "color_recommendations": { ... }
-    }
     """
     refresh_env()
 
@@ -2535,12 +2433,6 @@ def detect_skin_tone():
 def checkout():
     """
     Record a purchase in history to drive recommendations.
-    
-    Request Body:
-    {
-        "user_id": "uuid-string",
-        "product_id": "M-UP-01"
-    }
     """
     try:
         data = request.json
@@ -2602,15 +2494,3 @@ if __name__ == '__main__':
     print("\n" + "=" * 80)
     
     app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
-
-
-
-
-
-
-
-
-
-
-
-
