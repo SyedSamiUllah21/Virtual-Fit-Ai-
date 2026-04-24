@@ -1536,11 +1536,64 @@ def generate_vton():
             return f'data:image/jpeg;base64,{b64}'
 
         def build_reference_board(person_data_uri, garment_data_uris):
-            # Send only the clean person image — no overlay cards.
-            # Pasting garment thumbnails onto the photo caused the AI to reproduce
-            # those cards in the output (showing a composite instead of just the person in clothes).
-            # The prompt already specifies which garments to apply, so no visual reference is needed.
-            return person_data_uri, 'person-only', {'left_ratio': 1.0, 'top_ratio': 0.0}
+            from PIL import Image, ImageDraw, ImageFont
+
+            try:
+                person_img = data_uri_to_rgb_image(person_data_uri)
+            except Exception:
+                return person_data_uri, 'person-only', {'left_ratio': 1.0, 'top_ratio': 0.0}
+
+            garment_imgs = []
+            for g_uri in garment_data_uris or []:
+                try:
+                    garment_imgs.append(data_uri_to_rgb_image(g_uri))
+                except Exception:
+                    continue
+
+            if not garment_imgs:
+                return person_data_uri, 'person-only', {'left_ratio': 1.0, 'top_ratio': 0.0}
+
+            pw, ph = person_img.size
+
+            # --- Garment panel: stack garments vertically in a column ---
+            panel_w = max(180, int(pw * 0.38))
+            divider_w = 6
+            n = len(garment_imgs[:2])  # max 2 garments
+            cell_h = ph // n if n > 0 else ph
+            panel_h = ph
+
+            # Cream background for garment panel (clearly different from photo)
+            panel = Image.new('RGB', (panel_w, panel_h), (255, 250, 240))
+            draw = ImageDraw.Draw(panel)
+
+            for i, g_img in enumerate(garment_imgs[:2]):
+                cy = i * cell_h
+                # White card background for each garment
+                margin = 12
+                draw.rectangle([margin, cy + margin, panel_w - margin, cy + cell_h - margin],
+                                fill=(255, 255, 255), outline=(200, 185, 160), width=2)
+                # Fit garment inside card
+                card_w = panel_w - margin * 2 - 4
+                card_h = cell_h - margin * 2 - 4
+                g_fit = g_img.copy()
+                g_fit.thumbnail((card_w, card_h), Image.Resampling.LANCZOS)
+                gx = margin + 2 + (card_w - g_fit.width) // 2
+                gy = cy + margin + 2 + (card_h - g_fit.height) // 2
+                panel.paste(g_fit, (gx, gy))
+
+            # Divider strip (dark line separating person from garment reference)
+            divider = Image.new('RGB', (divider_w, ph), (60, 45, 30))
+
+            # Compose: [person | divider | garment_panel]
+            total_w = pw + divider_w + panel_w
+            board = Image.new('RGB', (total_w, ph), (245, 241, 233))
+            board.paste(person_img, (0, 0))
+            board.paste(divider, (pw, 0))
+            board.paste(panel, (pw + divider_w, 0))
+
+            left_ratio = pw / float(total_w)
+            board_uri = rgb_image_to_data_uri_jpeg(board)
+            return board_uri, 'side-by-side', {'left_ratio': left_ratio, 'top_ratio': 0.0}
 
         board_data_uri, board_mode, board_meta = build_reference_board(user_image_data_uri, garment_images_data_uris)
 
@@ -1905,9 +1958,20 @@ def generate_vton():
                         except Exception:
                             source_rgb = None
 
-                    # Detect split-pane artifacts and keep the side that best matches source pose/background.
-                    seam_x = None
-                    seam_y = None
+                    # If we sent a side-by-side composite, ALWAYS crop the generated output
+                    # to match the original person's aspect ratio and remove the garment reference panel.
+                    if board_left_ratio and 0.45 < board_left_ratio < 0.95 and generated_img.width > 0 and generated_img.height > 0:
+                        left_crop_w = int(round(generated_img.width * board_left_ratio))
+                        left_crop_w = max(64, min(generated_img.width, left_crop_w))
+                        generated_img = generated_img.crop((0, 0, left_crop_w, generated_img.height))
+
+                    # Landscape mode fallback: remove top reference strip when still present.
+                    if board_top_ratio and 0.08 < board_top_ratio < 0.45 and generated_img.width > 0 and generated_img.height > 0:
+                        crop_top = int(round(generated_img.height * board_top_ratio))
+                        crop_top = max(0, min(generated_img.height - 2, crop_top))
+                        if crop_top > 0:
+                            generated_img = generated_img.crop((0, crop_top, generated_img.width, generated_img.height))
+
                     if enable_split_artifact_crop:
                         seam_x = find_vertical_split_seam_x(generated_img)
                         if seam_x and source_rgb is not None:
@@ -1920,24 +1984,6 @@ def generate_vton():
                             best_band = choose_band_by_source_similarity(generated_img, seam_y, source_rgb)
                             if best_band is not None:
                                 generated_img = best_band
-
-                        # Some responses still contain the full reference board layout.
-                        # Crop to the source-photo panel before fitting to the original canvas.
-                        if board_left_ratio and 0.45 < board_left_ratio < 0.95 and generated_img.width > 0 and generated_img.height > 0 and seam_x is None:
-                            source_ratio = target_w / float(max(1, target_h))
-                            generated_ratio = generated_img.width / float(max(1, generated_img.height))
-                            looks_like_reference_board = generated_ratio > (source_ratio * 1.20)
-                            if looks_like_reference_board:
-                                left_crop_w = int(round(generated_img.width * board_left_ratio))
-                                left_crop_w = max(64, min(generated_img.width, left_crop_w))
-                                generated_img = generated_img.crop((0, 0, left_crop_w, generated_img.height))
-
-                        # Landscape mode fallback: remove top reference strip when still present.
-                        if board_top_ratio and 0.08 < board_top_ratio < 0.45 and generated_img.width > 0 and generated_img.height > 0 and seam_y is None:
-                            crop_top = int(round(generated_img.height * board_top_ratio))
-                            crop_top = max(0, min(generated_img.height - 2, crop_top))
-                            if crop_top > 0:
-                                generated_img = generated_img.crop((0, crop_top, generated_img.width, generated_img.height))
 
                     if generated_img.width == target_w and generated_img.height == target_h:
                         return rgb_image_to_data_uri_jpeg(generated_img)
