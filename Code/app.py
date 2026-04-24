@@ -1455,6 +1455,8 @@ def generate_vton():
         custom_prompt=None,
         target_garment_text=None,
         fallback_reason=None,
+        source_width_hint=None,
+        source_height_hint=None,
     ):
         seededit_key = (
             os.environ.get('ARK_API_KEY')
@@ -1505,6 +1507,14 @@ def generate_vton():
         except Exception:
             orig_width = 0
             orig_height = 0
+
+        if (orig_width <= 0 or orig_height <= 0) and source_width_hint and source_height_hint:
+            try:
+                orig_width = max(1, int(source_width_hint))
+                orig_height = max(1, int(source_height_hint))
+            except Exception:
+                orig_width = 0
+                orig_height = 0
 
         def data_uri_to_rgb_image(image_uri):
             _mime, payload = parse_image_payload(image_uri)
@@ -1979,6 +1989,17 @@ def generate_vton():
     try:
         refresh_env()
         data = request.get_json() or {}
+
+        def parse_positive_int(value):
+            try:
+                parsed = int(float(value))
+                return parsed if parsed > 0 else 0
+            except Exception:
+                return 0
+
+        source_width_hint = parse_positive_int(data.get('source_width'))
+        source_height_hint = parse_positive_int(data.get('source_height'))
+
         user_image = data.get('user_image')
         custom_prompt = str(data.get('custom_prompt') or data.get('prompt') or '').strip()
         target_garment_text = str(data.get('target_garment') or '').strip()
@@ -2000,13 +2021,15 @@ def generate_vton():
             return jsonify({'success': False, 'error': 'Missing user_image or product_id/product_ids'}), 400
 
         # Normalize user image. If it's a URL (e.g. from previous VTON step), fetch it and convert to base64.
+        user_image_b64 = ''
         if isinstance(user_image, str) and (user_image.startswith('http://') or user_image.startswith('https://')):
             try:
                 rq = urllib.request.Request(user_image, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
                 with urllib.request.urlopen(rq, timeout=15) as rs:
                     img_bytes = rs.read()
                     curr_mime = rs.headers.get_content_type() or 'image/jpeg'
-                    user_image = f'data:{curr_mime};base64,{base64.b64encode(img_bytes).decode("utf-8")}'
+                    user_image_b64 = base64.b64encode(img_bytes).decode('utf-8')
+                    user_image = f'data:{curr_mime};base64,{user_image_b64}'
             except Exception as fetch_err:
                 print(f"[VTON] Warning: failed to fetch URL {user_image[:50]}: {fetch_err}")
                 return jsonify({'success': False, 'error': 'Failed to process previous outfit step image.'}), 400
@@ -2018,9 +2041,16 @@ def generate_vton():
         try:
             from PIL import Image
             import io
-            with Image.open(io.BytesIO(base64.b64decode(user_image_b64))) as img:
+            portrait_b64 = user_image_b64
+            if not portrait_b64:
+                _portrait_mime, portrait_b64 = parse_image_payload(user_image)
+
+            with Image.open(io.BytesIO(base64.b64decode(portrait_b64))) as img:
                 if img.width >= img.height:
                     return jsonify({'success': False, 'error': 'Please upload a vertical (portrait) full-body photo for best results.'}), 400
+                if source_width_hint <= 0 or source_height_hint <= 0:
+                    source_width_hint = img.width
+                    source_height_hint = img.height
         except Exception:
             pass
 
@@ -2223,6 +2253,8 @@ def generate_vton():
                 garment_assets,
                 custom_prompt=custom_prompt,
                 target_garment_text=target_garment_text,
+                source_width_hint=source_width_hint,
+                source_height_hint=source_height_hint,
             )
 
         return jsonify({

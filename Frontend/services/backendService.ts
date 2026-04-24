@@ -230,7 +230,9 @@ export async function generateVTON(
     expectedGender?: 'Men' | 'Women',
     productIds?: string[],
     customPrompt?: string,
-    targetGarment?: string
+    targetGarment?: string,
+    sourceWidth?: number,
+    sourceHeight?: number
 ): Promise<VTONResult> {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 320000);
@@ -247,6 +249,8 @@ export async function generateVTON(
                 expected_gender: expectedGender,
                 custom_prompt: customPrompt && customPrompt.trim().length > 0 ? customPrompt.trim() : undefined,
                 target_garment: targetGarment && targetGarment.trim().length > 0 ? targetGarment.trim() : undefined,
+                source_width: Number.isFinite(sourceWidth) ? Math.round(sourceWidth as number) : undefined,
+                source_height: Number.isFinite(sourceHeight) ? Math.round(sourceHeight as number) : undefined,
             }),
             signal: controller.signal,
         });

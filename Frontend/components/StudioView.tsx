@@ -10,6 +10,11 @@ type CoachMessage = {
   pairedProducts?: Product[];
 };
 
+type UploadSourceDimensions = {
+  width: number;
+  height: number;
+};
+
 interface StudioViewProps {
   product?: Product | null;
   onBack: () => void;
@@ -56,6 +61,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
   const [vtonPrompt, setVtonPrompt] = useState('');
   const [uploadElapsedSec, setUploadElapsedSec] = useState(0);
   const [uploadProgressPct, setUploadProgressPct] = useState(0);
+  const [uploadSourceDimensions, setUploadSourceDimensions] = useState<UploadSourceDimensions | null>(null);
 
   const [gender, setGender] = useState<'womens' | 'mens'>(() => toStudioGender(product?.gender));
   const [weight, setWeight] = useState('');
@@ -83,6 +89,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     setVtonPrompt('');
     setUploadElapsedSec(0);
     setUploadProgressPct(0);
+    setUploadSourceDimensions(null);
     setCoachMessages([
       {
         role: 'assistant',
@@ -467,7 +474,60 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     return `Virtual try-on edit for ${garmentLabel}. Keep identity, face, body shape, pose, and background unchanged. Preserve realistic lighting and cloth texture.`;
   };
 
-  const processUploadedImage = async (imageDataUrl: string) => {
+  const normalizeUploadForVton = (file: File): Promise<{ dataUrl: string; width: number; height: number }> => {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        try {
+          const width = img.naturalWidth || img.width;
+          const height = img.naturalHeight || img.height;
+
+          if (width <= 0 || height <= 0) {
+            reject(new Error('Could not read this image. Please try another file.'));
+            return;
+          }
+
+          if (width >= height) {
+            reject(new Error('Please upload a vertical (portrait) full-body photo for best results.'));
+            return;
+          }
+
+          const maxLongSide = 1536;
+          const scale = Math.min(1, maxLongSide / Math.max(width, height));
+          const outWidth = Math.max(1, Math.round(width * scale));
+          const outHeight = Math.max(1, Math.round(height * scale));
+
+          const canvas = document.createElement('canvas');
+          canvas.width = outWidth;
+          canvas.height = outHeight;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not process this image. Please try another file.'));
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, outWidth, outHeight);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+          resolve({ dataUrl, width: outWidth, height: outHeight });
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Could not read this image. Please try another file.'));
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
+  const processUploadedImage = async (imageDataUrl: string, sourceDims?: UploadSourceDimensions | null) => {
     setIsUploading(true);
     setUploadError('');
     setOutfitStep('idle');
@@ -482,6 +542,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
       return;
     }
     const expectedSectionGender: 'Men' | 'Women' = gender === 'womens' ? 'Women' : 'Men';
+    const sourceWidth = sourceDims?.width || uploadSourceDimensions?.width;
+    const sourceHeight = sourceDims?.height || uploadSourceDimensions?.height;
     const pendingSkinTone = detectSkinTone(imageDataUrl)
       .catch(() => null);
 
@@ -512,6 +574,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           undefined,
           buildVtonPrompt(topName),
           topName,
+          sourceWidth,
+          sourceHeight,
         );
 
         if (!(step1.success && step1.generated_image)) {
@@ -535,6 +599,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           undefined,
           buildVtonPrompt(outfitLabel),
           bottomName,
+          sourceWidth,
+          sourceHeight,
         );
 
         setOutfitStep('idle');
@@ -571,6 +637,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
         undefined,
         singlePrompt,
         garmentLabel,
+        sourceWidth,
+        sourceHeight,
       );
       if (result.success && result.generated_image) {
         setUploadProgressPct(100);
@@ -599,7 +667,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     }
   };
 
-  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -631,23 +699,22 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : null;
-      if (!dataUrl) {
-        setUploadError('Could not read this image. Please try another file.');
-        return;
-      }
-      setUploadedImage(dataUrl);
+    try {
+      const normalized = await normalizeUploadForVton(file);
+      setUploadSourceDimensions({ width: normalized.width, height: normalized.height });
+      setUploadedImage(normalized.dataUrl);
       setTryOnImage(null);
       setUploadError('');
-      void processUploadedImage(dataUrl);
-    };
-    reader.onerror = () => {
-      setUploadError('Could not read this image. Please try another file.');
-    };
-    reader.readAsDataURL(file);
-    event.target.value = '';
+      void processUploadedImage(normalized.dataUrl, {
+        width: normalized.width,
+        height: normalized.height,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not process this image. Please try another file.';
+      setUploadError(message);
+    } finally {
+      event.target.value = '';
+    }
   };
 
   const handlePurchaseClick = async () => {
@@ -675,6 +742,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
   };
 
   const hasUserPreview = Boolean(tryOnImage || uploadedImage);
+  const resultImage = tryOnImage;
+  const basePreviewImage = uploadedImage || product?.image || null;
 
   // Outfit builder computed values
   const upperIds = new Set(['m1', 'm2', 'm3', 'w1', 'w2', 'w3']);
@@ -1014,21 +1083,33 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           {/* Main Huge Image Area */}
           <div className="w-full bg-[#fffaf2] rounded-[1.75rem] overflow-hidden flex flex-col relative shadow-sm border-[2.5px] border-[#d4c3b3] group cursor-pointer h-[65vh] min-h-[400px] max-h-[700px] lg:h-[70vh] lg:max-h-[850px] xl:h-[75vh] xl:max-h-[900px]">
             <div className="flex-1 w-full flex items-center justify-center p-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-[#8a5f3b]/[0.03] min-h-0 h-full relative">
-              {tryOnImage || uploadedImage || product?.image ? (
+              {basePreviewImage ? (
                 <img
-                  src={tryOnImage || uploadedImage || product?.image}
+                  src={basePreviewImage}
                   alt={product?.name || "Placeholder"}
-                  className={`w-full h-full object-contain mx-auto drop-shadow-xl transition-transform duration-500 ${(tryOnImage || uploadedImage) ? '' : 'mix-blend-multiply'}`}
+                  className={`absolute inset-0 z-10 w-full h-full object-contain mx-auto drop-shadow-xl transition-transform duration-500 ${(uploadedImage || resultImage) ? '' : 'mix-blend-multiply'}`}
                 />
-              ) : (
+              ) : null}
+
+              {resultImage ? (
+                <div className="absolute inset-0 z-50 flex items-center justify-center">
+                  <img
+                    src={resultImage}
+                    alt="Generated try-on result"
+                    className="w-full h-full object-contain mx-auto drop-shadow-xl transition-transform duration-500"
+                  />
+                </div>
+              ) : null}
+
+              {!basePreviewImage && !resultImage ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <Shirt className="text-[#d4c3b3] w-1/4 h-1/4 animate-pulse duration-1000" />
                 </div>
-              )}
+              ) : null}
 
             </div>
 
-            {!tryOnImage && (
+            {!resultImage && (
               <div className="absolute bottom-0 left-0 w-full flex flex-col items-center justify-end pb-4 group-hover:pb-5 transition-all bg-gradient-to-t from-[#fffaf2]/85 via-[#fffaf2]/35 to-transparent">
                 <Camera size={24} strokeWidth={1.5} className="text-[#5d4631] mb-1.5 group-hover:scale-110 transition-transform drop-shadow-md" />
                 <span className="text-[#5d4631] text-[11px] font-bold tracking-[0.14em] uppercase drop-shadow-sm">Upload for virtual try-on</span>
