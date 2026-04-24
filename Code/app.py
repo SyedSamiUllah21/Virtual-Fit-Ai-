@@ -1822,7 +1822,7 @@ def generate_vton():
                     _hdr, payload = value.split(',', 1)
                     decoded_bytes = base64.b64decode(payload)
                 elif value.startswith('http://') or value.startswith('https://'):
-                    req = urllib.request.Request(value, headers={'User-Agent': 'Mozilla/5.0'})
+                    req = urllib.request.Request(value, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
                     with urllib.request.urlopen(req, timeout=25) as resp:
                         decoded_bytes = resp.read()
                 else:

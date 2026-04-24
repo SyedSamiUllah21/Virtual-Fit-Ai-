@@ -543,10 +543,10 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           resolve(canvas.toDataURL('image/jpeg', 0.95));
         } catch (e) {
           console.error('Failed to crop image by ratio:', e);
-          resolve(imageUrl);
+          reject(new Error('Cross-origin restriction prevented image cropping.'));
         }
       };
-      img.onerror = () => resolve(imageUrl);
+      img.onerror = () => reject(new Error('Failed to load image for cropping.'));
       img.src = imageUrl;
     });
   };
