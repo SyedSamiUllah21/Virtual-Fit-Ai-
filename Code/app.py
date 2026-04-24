@@ -281,10 +281,7 @@ def build_allowed_cors_origins() -> List[str]:
     return sorted(allowed)
 
 
-CORS(
-    app,
-    origins=build_allowed_cors_origins(),
-)
+CORS(app, resources={r"/*": {"origins": ["https://virtual-fit-ai-mocha.vercel.app", "http://localhost:3000"]}})
 
 # ============================================================================
 # DATABASE CONFIGURATION
@@ -1669,7 +1666,11 @@ def generate_vton():
                 elif category == 'bottom' and not resolved_bottom_id:
                     resolved_bottom_id = pid
 
-        if resolved_top_id and resolved_bottom_id:
+        explicit_outfit_fields_enabled = str(
+            os.environ.get('SEEDEDIT_ENABLE_EXPLICIT_OUTFIT_FIELDS', 'false')
+        ).strip().lower() in {'1', 'true', 'yes', 'on'}
+
+        if explicit_outfit_fields_enabled and resolved_top_id and resolved_bottom_id:
             top_image = id_to_garment_data_uri.get(resolved_top_id, '')
             bottom_image = id_to_garment_data_uri.get(resolved_bottom_id, '')
             if top_image and bottom_image:
@@ -1751,10 +1752,25 @@ def generate_vton():
             try:
                 from PIL import Image
 
+                try:
+                    provider_max_side = int(os.environ.get('SEEDEDIT_INPUT_MAX_SIDE', '1536'))
+                except ValueError:
+                    provider_max_side = 1536
+                provider_max_side = max(768, min(2048, provider_max_side))
+
+                try:
+                    provider_jpeg_quality = int(os.environ.get('SEEDEDIT_INPUT_JPEG_QUALITY', '88'))
+                except ValueError:
+                    provider_jpeg_quality = 88
+                provider_jpeg_quality = max(70, min(95, provider_jpeg_quality))
+
                 with Image.open(io.BytesIO(decoded_bytes)) as image:
                     image = image.convert('RGB')
+                    if max(image.size) > provider_max_side:
+                        resample = getattr(getattr(Image, 'Resampling', Image), 'LANCZOS', Image.LANCZOS)
+                        image.thumbnail((provider_max_side, provider_max_side), resample)
                     output = io.BytesIO()
-                    image.save(output, format='JPEG', quality=92, optimize=True)
+                    image.save(output, format='JPEG', quality=provider_jpeg_quality, optimize=True)
                     jpeg_b64 = base64.b64encode(output.getvalue()).decode('utf-8')
                 return f'data:image/jpeg;base64,{jpeg_b64}', 'data-uri-jpeg'
             except Exception:

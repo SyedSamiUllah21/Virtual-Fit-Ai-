@@ -235,7 +235,7 @@ export async function generateVTON(
     sourceHeight?: number
 ): Promise<VTONResult> {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 320000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 600000);
 
     try {
         const res = await fetch(`${BASE}/vton-generate`, {

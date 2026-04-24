@@ -564,24 +564,24 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
         const bottomName = isCurrentProductUpper ? pairedProduct.name : product.name;
         const outfitLabel = `${topName} and ${bottomName}`;
 
-        // Single pass: apply top + bottom together so backend can map explicit full-outfit references.
+        // Pass 1: apply top garment.
         setOutfitStep('step1');
-        const outfitResult = await generateVTON(
+        const step1 = await generateVTON(
           imageDataUrl,
           topBackendId,
           undefined,
           expectedSectionGender,
-          [topBackendId, bottomBackendId],
+          undefined,
           buildVtonPrompt(topName),
-          outfitLabel,
+          topName,
           sourceWidth,
           sourceHeight,
         );
 
-        if (!(outfitResult.success && outfitResult.generated_image)) {
+        if (!(step1.success && step1.generated_image)) {
           setOutfitStep('idle');
           setTryOnImage(null);
-          const message = outfitResult.error || 'Full outfit try-on failed. Please try again.';
+          const message = step1.error || 'Outfit try-on failed while applying the top. Please try again.';
           setUploadError(message);
           if (!isValidationBlockingUploadError(message)) {
             applySkinToneResult(await pendingSkinTone);
@@ -589,15 +589,40 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           return;
         }
 
+        // Pass 2: apply bottom garment on top-pass result.
+        setOutfitStep('step2');
+        const step2 = await generateVTON(
+          step1.generated_image,
+          bottomBackendId,
+          undefined,
+          expectedSectionGender,
+          undefined,
+          buildVtonPrompt(outfitLabel),
+          bottomName,
+          sourceWidth,
+          sourceHeight,
+        );
+
         setOutfitStep('idle');
-        setUploadProgressPct(100);
-        setTryOnImage(outfitResult.generated_image);
-        setUploadError('');
-        applySkinToneResult(await pendingSkinTone);
-        setCoachMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: `Full outfit look ready! You\'re wearing the ${topName} with the ${bottomName}.` }
-        ]);
+
+        if (step2.success && step2.generated_image) {
+          setUploadProgressPct(100);
+          setTryOnImage(step2.generated_image);
+          setUploadError('');
+          applySkinToneResult(await pendingSkinTone);
+          setCoachMessages((prev) => [
+            ...prev,
+            { role: 'assistant', content: `Full outfit look ready! You\'re wearing the ${topName} with the ${bottomName}.` }
+          ]);
+        } else {
+          // Keep pass-1 result as graceful fallback when pass-2 fails.
+          setTryOnImage(step1.generated_image);
+          const message = step2.error || 'Bottom application failed, but top look is ready. Try again to complete full outfit.';
+          setUploadError(message);
+          if (!isValidationBlockingUploadError(message)) {
+            applySkinToneResult(await pendingSkinTone);
+          }
+        }
         return;
       }
 
@@ -631,6 +656,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
       }
     } catch (error) {
       setOutfitStep('idle');
+      console.error('Fetch Error Detail:', error);
       const message = error instanceof Error ? error.message : 'Virtual try-on failed. Please try another photo.';
       setTryOnImage(null);
       setUploadError(message);
