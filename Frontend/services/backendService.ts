@@ -1,4 +1,4 @@
-﻿/**
+/**
  * backendService.ts
  * Typed helpers that talk to the Flask backend.
  * Hardcoded to Render production URL to bypass Vercel build injection issues.
@@ -218,6 +218,7 @@ export async function detectSkinTone(imageData: string, userId?: string): Promis
 export interface VTONResult {
     success: boolean;
     generated_image?: string;
+    crop_left_ratio?: number;
     message?: string;
     note?: string;
     error?: string;

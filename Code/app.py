@@ -1960,30 +1960,17 @@ def generate_vton():
 
                     # If we sent a side-by-side composite, ALWAYS crop the generated output
                     # to match the original person's aspect ratio and remove the garment reference panel.
-                    if board_left_ratio and 0.45 < board_left_ratio < 0.95 and generated_img.width > 0 and generated_img.height > 0:
+                    if board_left_ratio is not None and board_left_ratio > 0.0 and generated_img.width > 0 and generated_img.height > 0:
                         left_crop_w = int(round(generated_img.width * board_left_ratio))
                         left_crop_w = max(64, min(generated_img.width, left_crop_w))
                         generated_img = generated_img.crop((0, 0, left_crop_w, generated_img.height))
 
                     # Landscape mode fallback: remove top reference strip when still present.
-                    if board_top_ratio and 0.08 < board_top_ratio < 0.45 and generated_img.width > 0 and generated_img.height > 0:
+                    if board_top_ratio is not None and board_top_ratio > 0.0 and generated_img.width > 0 and generated_img.height > 0:
                         crop_top = int(round(generated_img.height * board_top_ratio))
                         crop_top = max(0, min(generated_img.height - 2, crop_top))
                         if crop_top > 0:
                             generated_img = generated_img.crop((0, crop_top, generated_img.width, generated_img.height))
-
-                    if enable_split_artifact_crop:
-                        seam_x = find_vertical_split_seam_x(generated_img)
-                        if seam_x and source_rgb is not None:
-                            best_side = choose_side_by_source_similarity(generated_img, seam_x, source_rgb)
-                            if best_side is not None:
-                                generated_img = best_side
-
-                        seam_y = find_horizontal_split_seam_y(generated_img)
-                        if seam_y and source_rgb is not None:
-                            best_band = choose_band_by_source_similarity(generated_img, seam_y, source_rgb)
-                            if best_band is not None:
-                                generated_img = best_band
 
                     if generated_img.width == target_w and generated_img.height == target_h:
                         return rgb_image_to_data_uri_jpeg(generated_img)
@@ -2010,7 +1997,10 @@ def generate_vton():
                     offset_y = (target_h - contain_img.height) // 2
                     source_canvas.paste(contain_img, (offset_x, offset_y))
                     return rgb_image_to_data_uri_jpeg(source_canvas)
-            except Exception:
+            except Exception as e:
+                import traceback
+                print(f"[VTON] normalize_output_to_source_canvas failed: {e}")
+                traceback.print_exc()
                 return image_value
 
         provider_image, provider_image_mode = normalize_provider_image(board_data_uri)
@@ -2093,6 +2083,7 @@ def generate_vton():
         return jsonify({
             'success': True,
             'generated_image': generated_url,
+            'crop_left_ratio': (board_meta or {}).get('left_ratio'),
             'message': 'Virtual Try-On generated successfully!',
             'selected_product_id': selected_product_ids[0] if selected_product_ids else '',
             'selected_product_name': selected_product_names[0] if selected_product_names else '',
