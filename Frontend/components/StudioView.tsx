@@ -527,70 +527,6 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     });
   };
 
-  // Auto-crop large whitespace borders from VTON result images so the subject fills the canvas
-  const autoCropWhitespace = (dataUrl: string): Promise<string> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const w = img.naturalWidth || img.width;
-          const h = img.naturalHeight || img.height;
-          if (w <= 0 || h <= 0) { resolve(dataUrl); return; }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) { resolve(dataUrl); return; }
-
-          ctx.drawImage(img, 0, 0, w, h);
-          const data = ctx.getImageData(0, 0, w, h).data;
-
-          // Threshold: pixel is considered "background" if R,G,B are all >= 240 (near-white)
-          const BG = 240;
-          let minX = w, minY = h, maxX = 0, maxY = 0;
-          let hasContent = false;
-
-          for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-              const idx = (y * w + x) * 4;
-              const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
-              // Skip fully transparent or near-white pixels
-              if (a < 20 || (r >= BG && g >= BG && b >= BG)) continue;
-              if (x < minX) minX = x;
-              if (x > maxX) maxX = x;
-              if (y < minY) minY = y;
-              if (y > maxY) maxY = y;
-              hasContent = true;
-            }
-          }
-
-          if (!hasContent || maxX <= minX || maxY <= minY) { resolve(dataUrl); return; }
-
-          // Add generous padding so subject is not clipped
-          const pad = Math.max(20, Math.round(Math.min(w, h) * 0.04));
-          const cx = Math.max(0, minX - pad);
-          const cy = Math.max(0, minY - pad);
-          const cw = Math.min(w, maxX + pad + 1) - cx;
-          const ch = Math.min(h, maxY + pad + 1) - cy;
-
-          if (cw <= 0 || ch <= 0) { resolve(dataUrl); return; }
-
-          const out = document.createElement('canvas');
-          out.width = cw;
-          out.height = ch;
-          const outCtx = out.getContext('2d');
-          if (!outCtx) { resolve(dataUrl); return; }
-          outCtx.drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
-          resolve(out.toDataURL('image/jpeg', 0.92));
-        } catch {
-          resolve(dataUrl);
-        }
-      };
-      img.onerror = () => resolve(dataUrl);
-      img.src = dataUrl;
-    });
-  };
 
   const processUploadedImage = async (imageDataUrl: string, sourceDims?: UploadSourceDimensions | null) => {
     setIsUploading(true);
@@ -672,8 +608,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
 
         if (step2.success && step2.generated_image) {
           setUploadProgressPct(100);
-          const cropped2 = await autoCropWhitespace(step2.generated_image);
-          setTryOnImage(cropped2);
+          setTryOnImage(step2.generated_image);
           setUploadError('');
           applySkinToneResult(await pendingSkinTone);
           setCoachMessages((prev) => [
@@ -682,8 +617,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           ]);
         } else {
           // Keep pass-1 result as graceful fallback when pass-2 fails.
-          const cropped1 = await autoCropWhitespace(step1.generated_image);
-          setTryOnImage(cropped1);
+          setTryOnImage(step1.generated_image);
           const message = step2.error || 'Bottom application failed, but top look is ready. Try again to complete full outfit.';
           setUploadError(message);
           if (!isValidationBlockingUploadError(message)) {
@@ -709,8 +643,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
       );
       if (result.success && result.generated_image) {
         setUploadProgressPct(100);
-        const croppedSingle = await autoCropWhitespace(result.generated_image);
-        setTryOnImage(croppedSingle);
+        setTryOnImage(result.generated_image);
         setUploadError('');
         applySkinToneResult(await pendingSkinTone);
         return;
