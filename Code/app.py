@@ -1586,14 +1586,20 @@ def generate_vton():
 
             # Compose: [person | divider | garment_panel]
             total_w = pw + divider_w + panel_w
-            board = Image.new('RGB', (total_w, ph), (245, 241, 233))
+            
+            import math
+            padded_total_w = int(math.ceil(total_w / 64.0)) * 64
+            padded_ph = int(math.ceil(ph / 64.0)) * 64
+
+            board = Image.new('RGB', (padded_total_w, padded_ph), (245, 241, 233))
             board.paste(person_img, (0, 0))
             board.paste(divider, (pw, 0))
             board.paste(panel, (pw + divider_w, 0))
 
-            left_ratio = pw / float(total_w)
+            left_ratio = pw / float(padded_total_w)
+            height_ratio = ph / float(padded_ph)
             board_uri = rgb_image_to_data_uri_jpeg(board)
-            return board_uri, 'side-by-side', {'left_ratio': left_ratio, 'top_ratio': 0.0}
+            return board_uri, 'side-by-side', {'left_ratio': left_ratio, 'top_ratio': 0.0, 'height_ratio': height_ratio}
 
         board_data_uri, board_mode, board_meta = build_reference_board(user_image_data_uri, garment_images_data_uris)
 
@@ -1609,6 +1615,10 @@ def generate_vton():
         def resolve_generation_size(default_size):
             if source_width <= 0 or source_height <= 0:
                 return default_size
+
+            # If the source dimensions are already valid multiples of 64 within bounds, use them exactly.
+            if source_width % 64 == 0 and source_height % 64 == 0 and source_width <= 2048 and source_height <= 2048 and source_width >= 768 and source_height >= 768:
+                return f'{source_width}x{source_height}'
 
             long_side_target = 2048
             short_side_min = 1024
@@ -1963,7 +1973,14 @@ def generate_vton():
                     if board_left_ratio is not None and board_left_ratio > 0.0 and generated_img.width > 0 and generated_img.height > 0:
                         left_crop_w = int(round(generated_img.width * board_left_ratio))
                         left_crop_w = max(64, min(generated_img.width, left_crop_w))
-                        generated_img = generated_img.crop((0, 0, left_crop_w, generated_img.height))
+                        
+                        board_height_ratio = (board_meta or {}).get('height_ratio')
+                        crop_h = generated_img.height
+                        if board_height_ratio is not None and board_height_ratio > 0.0:
+                            crop_h = int(round(generated_img.height * board_height_ratio))
+                            crop_h = max(64, min(generated_img.height, crop_h))
+                            
+                        generated_img = generated_img.crop((0, 0, left_crop_w, crop_h))
 
                     # Landscape mode fallback: remove top reference strip when still present.
                     if board_top_ratio is not None and board_top_ratio > 0.0 and generated_img.width > 0 and generated_img.height > 0:
