@@ -1088,16 +1088,18 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
                 <img
                   src={basePreviewImage}
                   alt={product?.name || "Placeholder"}
+                  style={{ objectPosition: 'center center' }}
                   className={`absolute inset-0 z-10 w-full h-full object-contain mx-auto drop-shadow-xl transition-transform duration-500 ${(uploadedImage || resultImage) ? '' : 'mix-blend-multiply'}`}
                 />
               ) : null}
 
               {resultImage ? (
-                <div className="absolute inset-0 z-50 flex items-center justify-center">
+                <div className="absolute inset-0 z-50 overflow-hidden" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <img
                     src={resultImage}
                     alt="Generated try-on result"
-                    className="w-full h-full object-contain drop-shadow-xl transition-transform duration-500"
+                    style={{ objectPosition: 'center center', display: 'block', margin: '0 auto' }}
+                    className="w-full h-full object-contain object-center drop-shadow-xl transition-transform duration-500"
                   />
                 </div>
               ) : null}
