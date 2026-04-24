@@ -1121,12 +1121,12 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
                   <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Full-body front-facing photo</span>
                 </div>
                 <div className="flex flex-col items-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
-                  <Sun size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
-                  <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Good lighting and plain background</span>
+                  <Camera size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
+                  <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Vertical portrait orientation</span>
                 </div>
                 <div className="flex flex-col items-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
-                  <Shirt size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
-                  <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Wear form-fitting clothes</span>
+                  <Sun size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
+                  <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Good lighting &amp; plain background</span>
                 </div>
               </div>
 
