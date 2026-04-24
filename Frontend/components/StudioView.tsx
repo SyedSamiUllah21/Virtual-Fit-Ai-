@@ -527,6 +527,71 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     });
   };
 
+  // Auto-crop large whitespace borders from VTON result images so the subject fills the canvas
+  const autoCropWhitespace = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const w = img.naturalWidth || img.width;
+          const h = img.naturalHeight || img.height;
+          if (w <= 0 || h <= 0) { resolve(dataUrl); return; }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(dataUrl); return; }
+
+          ctx.drawImage(img, 0, 0, w, h);
+          const data = ctx.getImageData(0, 0, w, h).data;
+
+          // Threshold: pixel is considered "background" if R,G,B are all >= 240 (near-white)
+          const BG = 240;
+          let minX = w, minY = h, maxX = 0, maxY = 0;
+          let hasContent = false;
+
+          for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+              const idx = (y * w + x) * 4;
+              const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+              // Skip fully transparent or near-white pixels
+              if (a < 20 || (r >= BG && g >= BG && b >= BG)) continue;
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              hasContent = true;
+            }
+          }
+
+          if (!hasContent || maxX <= minX || maxY <= minY) { resolve(dataUrl); return; }
+
+          // Add generous padding so subject is not clipped
+          const pad = Math.max(20, Math.round(Math.min(w, h) * 0.04));
+          const cx = Math.max(0, minX - pad);
+          const cy = Math.max(0, minY - pad);
+          const cw = Math.min(w, maxX + pad + 1) - cx;
+          const ch = Math.min(h, maxY + pad + 1) - cy;
+
+          if (cw <= 0 || ch <= 0) { resolve(dataUrl); return; }
+
+          const out = document.createElement('canvas');
+          out.width = cw;
+          out.height = ch;
+          const outCtx = out.getContext('2d');
+          if (!outCtx) { resolve(dataUrl); return; }
+          outCtx.drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
+          resolve(out.toDataURL('image/jpeg', 0.92));
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  };
+
   const processUploadedImage = async (imageDataUrl: string, sourceDims?: UploadSourceDimensions | null) => {
     setIsUploading(true);
     setUploadError('');
@@ -607,7 +672,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
 
         if (step2.success && step2.generated_image) {
           setUploadProgressPct(100);
-          setTryOnImage(step2.generated_image);
+          const cropped2 = await autoCropWhitespace(step2.generated_image);
+          setTryOnImage(cropped2);
           setUploadError('');
           applySkinToneResult(await pendingSkinTone);
           setCoachMessages((prev) => [
@@ -616,7 +682,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           ]);
         } else {
           // Keep pass-1 result as graceful fallback when pass-2 fails.
-          setTryOnImage(step1.generated_image);
+          const cropped1 = await autoCropWhitespace(step1.generated_image);
+          setTryOnImage(cropped1);
           const message = step2.error || 'Bottom application failed, but top look is ready. Try again to complete full outfit.';
           setUploadError(message);
           if (!isValidationBlockingUploadError(message)) {
@@ -642,7 +709,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
       );
       if (result.success && result.generated_image) {
         setUploadProgressPct(100);
-        setTryOnImage(result.generated_image);
+        const croppedSingle = await autoCropWhitespace(result.generated_image);
+        setTryOnImage(croppedSingle);
         setUploadError('');
         applySkinToneResult(await pendingSkinTone);
         return;
@@ -1083,25 +1151,25 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
 
           {/* Main Huge Image Area */}
           <div className="w-full bg-[#fffaf2] rounded-[1.75rem] overflow-hidden flex flex-col relative shadow-sm border-[2.5px] border-[#d4c3b3] group cursor-pointer h-[65vh] min-h-[400px] max-h-[700px] lg:h-[70vh] lg:max-h-[850px] xl:h-[75vh] xl:max-h-[900px]">
-            <div className="flex-1 w-full flex items-center justify-center p-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-[#8a5f3b]/[0.03] min-h-0 h-full relative">
-              {basePreviewImage ? (
+            <div className="flex-1 w-full flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-[#8a5f3b]/[0.03] min-h-0 h-full relative overflow-hidden">
+
+              {/* Base preview: uploaded photo or product image (hidden when result is ready) */}
+              {basePreviewImage && !resultImage ? (
                 <img
                   src={basePreviewImage}
-                  alt={product?.name || "Placeholder"}
-                  style={{ objectPosition: 'center center' }}
-                  className={`absolute inset-0 z-10 w-full h-full object-contain mx-auto drop-shadow-xl transition-transform duration-500 ${(uploadedImage || resultImage) ? '' : 'mix-blend-multiply'}`}
+                  alt={product?.name || 'Placeholder'}
+                  className={`absolute inset-0 w-full h-full object-contain object-center drop-shadow-xl transition-transform duration-500 ${!uploadedImage ? 'mix-blend-multiply' : ''}`}
                 />
               ) : null}
 
+              {/* VTON result: auto-cropped so subject fills canvas, perfectly centered */}
               {resultImage ? (
-                <div className="absolute inset-0 z-50 overflow-hidden" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <img
-                    src={resultImage}
-                    alt="Generated try-on result"
-                    style={{ objectPosition: 'center center', display: 'block', margin: '0 auto' }}
-                    className="w-full h-full object-contain object-center drop-shadow-xl transition-transform duration-500"
-                  />
-                </div>
+                <img
+                  key={resultImage}
+                  src={resultImage}
+                  alt="Generated try-on result"
+                  className="absolute inset-0 w-full h-full object-contain object-center drop-shadow-2xl animate-in fade-in duration-700"
+                />
               ) : null}
 
               {!basePreviewImage && !resultImage ? (
