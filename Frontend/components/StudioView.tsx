@@ -471,7 +471,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
       return manualPrompt;
     }
 
-    return `Virtual try-on edit for ${garmentLabel}. Keep identity, face, body shape, pose, and background unchanged. Preserve realistic lighting and cloth texture.`;
+    return `Virtual try-on edit applying the ${garmentLabel}. Strictly match the exact color shade, pattern, and design of the provided reference garment. Keep identity, face, body shape, pose, and background unchanged. Preserve realistic lighting and cloth texture.`;
   };
 
   const normalizeUploadForVton = (file: File): Promise<{ dataUrl: string; width: number; height: number }> => {
