@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Camera, ChevronLeft, Loader2, Send, Sparkles, User, Sun, Shirt, Wand2, Layers } from 'lucide-react';
+import { AlertTriangle, Camera, ChevronLeft, Loader2, Send, Sparkles, User, Sun, Shirt, Wand2, Layers, Smartphone } from 'lucide-react';
 import { Product } from '../types';
 import { FRONTEND_TO_BACKEND_PRODUCT_ID, MOCK_PRODUCTS } from '../constants';
 import { explainSize, chat, detectSkinTone, generateVTON, type SizeResult } from '../services/backendService';
@@ -1115,16 +1115,16 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
                 <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[#d4c3b3]" />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 w-full">
-                <div className="flex flex-col items-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
+              <div className="grid grid-cols-3 gap-1 w-full items-stretch">
+                <div className="flex flex-col items-center justify-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
                   <User size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
                   <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Full-body front-facing photo</span>
                 </div>
-                <div className="flex flex-col items-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
-                  <Camera size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
+                <div className="flex flex-col items-center justify-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
+                  <Smartphone size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
                   <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Vertical portrait orientation</span>
                 </div>
-                <div className="flex flex-col items-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
+                <div className="flex flex-col items-center justify-center bg-[#fffaf2] rounded-lg p-1.5 w-full text-center border border-[#d4c3b3] shadow-sm">
                   <Sun size={14} strokeWidth={1.6} className="text-[#8a5f3b] mb-0.5" />
                   <span className="text-[8px] text-[#7a5f44] leading-tight font-semibold">Good lighting &amp; plain background</span>
                 </div>
