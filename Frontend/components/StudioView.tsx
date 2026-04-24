@@ -527,31 +527,6 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     });
   };
 
-  const cropImageByRatio = async (imageUrl: string, ratio: number): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const targetWidth = Math.max(64, Math.round(img.width * ratio));
-          canvas.width = targetWidth;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('No 2d context');
-          ctx.drawImage(img, 0, 0, targetWidth, img.height, 0, 0, targetWidth, img.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.95));
-        } catch (e) {
-          console.error('Failed to crop image by ratio:', e);
-          resolve(imageUrl); // fallback to original if it fails
-        }
-      };
-      img.onerror = () => resolve(imageUrl); // fallback to original
-      img.src = imageUrl;
-    });
-  };
-
-
   const processUploadedImage = async (imageDataUrl: string, sourceDims?: UploadSourceDimensions | null) => {
     setIsUploading(true);
     setUploadError('');
@@ -614,15 +589,10 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           return;
         }
 
-        let step1Image = step1.generated_image;
-        if (step1.crop_left_ratio) {
-          step1Image = await cropImageByRatio(step1Image, step1.crop_left_ratio);
-        }
-
         // Pass 2: apply bottom garment on top-pass result.
         setOutfitStep('step2');
         const step2 = await generateVTON(
-          step1Image,
+          step1.generated_image,
           bottomBackendId,
           undefined,
           expectedSectionGender,
@@ -636,12 +606,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
         setOutfitStep('idle');
 
         if (step2.success && step2.generated_image) {
-          let step2Image = step2.generated_image;
-          if (step2.crop_left_ratio) {
-            step2Image = await cropImageByRatio(step2Image, step2.crop_left_ratio);
-          }
           setUploadProgressPct(100);
-          setTryOnImage(step2Image);
+          setTryOnImage(step2.generated_image);
           setUploadError('');
           applySkinToneResult(await pendingSkinTone);
           setCoachMessages((prev) => [
@@ -650,7 +616,7 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
           ]);
         } else {
           // Keep pass-1 result as graceful fallback when pass-2 fails.
-          setTryOnImage(step1Image);
+          setTryOnImage(step1.generated_image);
           const message = step2.error || 'Bottom application failed, but top look is ready. Try again to complete full outfit.';
           setUploadError(message);
           if (!isValidationBlockingUploadError(message)) {
@@ -675,12 +641,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
         sourceHeight,
       );
       if (result.success && result.generated_image) {
-        let finalImage = result.generated_image;
-        if (result.crop_left_ratio) {
-          finalImage = await cropImageByRatio(finalImage, result.crop_left_ratio);
-        }
         setUploadProgressPct(100);
-        setTryOnImage(finalImage);
+        setTryOnImage(result.generated_image);
         setUploadError('');
         applySkinToneResult(await pendingSkinTone);
         return;
