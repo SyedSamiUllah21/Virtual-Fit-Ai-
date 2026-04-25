@@ -1982,16 +1982,30 @@ def generate_vton():
 
                     return top_fit if top_score <= bottom_score else bottom_fit
 
-                def crop_subject_bounds(rgb_img):
+                def find_content_bounds(rgb_img):
                     gray = rgb_img.convert('L')
                     pixels = gray.load()
                     w, h = gray.size
+
+                    if w <= 0 or h <= 0:
+                        return None
+
+                    corner_levels = [
+                        pixels[0, 0],
+                        pixels[w - 1, 0],
+                        pixels[0, h - 1],
+                        pixels[w - 1, h - 1],
+                    ]
+                    background_level = sorted(corner_levels)[len(corner_levels) // 2]
+                    threshold = background_level - 10 if background_level >= 235 else background_level - 18
+                    threshold = max(220, min(248, threshold))
+
                     min_x, min_y = w, h
                     max_x, max_y = -1, -1
 
                     for y in range(h):
                         for x in range(w):
-                            if pixels[x, y] < 245:
+                            if pixels[x, y] < threshold:
                                 if x < min_x:
                                     min_x = x
                                 if y < min_y:
@@ -2002,19 +2016,51 @@ def generate_vton():
                                     max_y = y
 
                     if max_x < 0 or max_y < 0:
-                        return rgb_img
+                        return None
 
-                    pad_x = max(24, int(w * 0.06))
-                    pad_y = max(24, int(h * 0.06))
+                    pad_x = max(24, int(w * 0.05))
+                    pad_y = max(24, int(h * 0.05))
                     left = max(0, min_x - pad_x)
                     top = max(0, min_y - pad_y)
                     right = min(w, max_x + pad_x + 1)
                     bottom = min(h, max_y + pad_y + 1)
 
                     if right - left < 64 or bottom - top < 64:
-                        return rgb_img
+                        return None
 
-                    return rgb_img.crop((left, top, right, bottom))
+                    cropped_area = float((right - left) * (bottom - top))
+                    full_area = float(w * h)
+                    if cropped_area / max(1.0, full_area) < 0.08:
+                        return None
+
+                    return left, top, right, bottom
+
+                def center_content_on_canvas(rgb_img, canvas_size):
+                    bounds = find_content_bounds(rgb_img)
+                    if bounds is None:
+                        fitted = ImageOps.contain(
+                            rgb_img,
+                            canvas_size,
+                            method=Image.Resampling.LANCZOS,
+                        )
+                        canvas = Image.new('RGB', canvas_size, (255, 255, 255))
+                        canvas.paste(fitted, ((canvas_size[0] - fitted.width) // 2, (canvas_size[1] - fitted.height) // 2))
+                        return canvas
+
+                    left, top, right, bottom = bounds
+                    content = rgb_img.crop((left, top, right, bottom))
+                    fitted = ImageOps.contain(
+                        content,
+                        canvas_size,
+                        method=Image.Resampling.LANCZOS,
+                    )
+
+                    canvas = Image.new('RGB', canvas_size, (255, 255, 255))
+                    canvas.paste(
+                        fitted,
+                        ((canvas_size[0] - fitted.width) // 2, (canvas_size[1] - fitted.height) // 2),
+                    )
+                    return canvas
 
                 def remove_split_artifact(rgb_img, source_rgb):
                     seam_x = find_vertical_split_seam_x(rgb_img)
@@ -2068,16 +2114,11 @@ def generate_vton():
 
                     generated_img = remove_split_artifact(generated_img, source_rgb)
 
-                    # Do NOT use crop_subject_bounds. It aggressively isolates the human, destroying the original source layout
-                    # scale when we place it back. Because we already extracted the original frame via the board ratios above,
-                    # this generated_img is meant to strictly match the source_rgb frame!
-                    
-                    if generated_img.width == target_w and generated_img.height == target_h:
-                        return rgb_image_to_data_uri_jpeg(generated_img)
+                    if generated_img.width <= 0 or generated_img.height <= 0:
+                        return image_value
 
-                    # Simply scale the correctly framed output perfectly back to the original size
-                    generated_img = generated_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
-                    return rgb_image_to_data_uri_jpeg(generated_img)
+                    centered_img = center_content_on_canvas(generated_img, (target_w, target_h))
+                    return rgb_image_to_data_uri_jpeg(centered_img)
             except Exception as e:
                 import traceback
                 print(f"[VTON] normalize_output_to_source_canvas failed: {e}")
