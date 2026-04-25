@@ -1434,14 +1434,14 @@ def generate_vton():
             f'Virtual try-on edit. Replace only the existing clothing with {garment_phrase}. '
             'Keep the same person, identity, face, hairstyle, body proportions, height, pose, background, camera angle, lighting, framing, and image crop. '
             'Copy the selected garment exactly from the reference image, including its exact color, pattern, texture, shape, fit, and placement. '
-            'Preserve the garment color exactly as shown in the reference image and do not borrow color from the source outfit, skin, or background. '
+            'Preserve the garment color exactly as shown in the reference image and do not color-bleed. If adding both top and bottom, DO NOT mix their colors; keep them strictly separated as they appear in the reference. '
             'Do not change any other part of the person or scene.'
         )
 
         negative_prompt = (
-            'Do not change height, body proportions, face, hairstyle, skin tone, pose, expression, background, camera angle, lighting, framing, crop, '
-            'or garment color, shade, hue, saturation, pattern, texture, or fit. Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, or extra clothing. '
-            'Do not create a side-by-side layout, mirrored half, cutout strip, or off-center subject.'
+            'color bleeding, color mixing between garments, recoloring, changing garment color, '
+            'changing height, body proportions, face, hairstyle, skin tone, pose, expression, background, camera angle, lighting, framing, crop, '
+            'Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, side-by-side layout, mirrored half, cutout strip, or off-center subject.'
         )
 
         prompt_override = str(custom_prompt or '').strip()
@@ -2067,25 +2067,17 @@ def generate_vton():
                             generated_img = generated_img.crop((0, crop_top, generated_img.width, generated_img.height))
 
                     generated_img = remove_split_artifact(generated_img, source_rgb)
-                    generated_img = crop_subject_bounds(generated_img)
 
+                    # Do NOT use crop_subject_bounds. It aggressively isolates the human, destroying the original source layout
+                    # scale when we place it back. Because we already extracted the original frame via the board ratios above,
+                    # this generated_img is meant to strictly match the source_rgb frame!
+                    
                     if generated_img.width == target_w and generated_img.height == target_h:
                         return rgb_image_to_data_uri_jpeg(generated_img)
 
-                    # Preserve full composition: no crop/zoom. Contain generated output and center it on the original portrait canvas.
-                    canvas_size = source_rgb.size if source_rgb is not None else (target_w, target_h)
-                    contain_img = ImageOps.contain(
-                        generated_img,
-                        canvas_size,
-                        method=Image.Resampling.LANCZOS,
-                    )
-
-                    source_canvas = Image.new('RGB', canvas_size, (255, 255, 255))
-
-                    offset_x = (canvas_size[0] - contain_img.width) // 2
-                    offset_y = (canvas_size[1] - contain_img.height) // 2
-                    source_canvas.paste(contain_img, (offset_x, offset_y))
-                    return rgb_image_to_data_uri_jpeg(source_canvas)
+                    # Simply scale the correctly framed output perfectly back to the original size
+                    generated_img = generated_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                    return rgb_image_to_data_uri_jpeg(generated_img)
             except Exception as e:
                 import traceback
                 print(f"[VTON] normalize_output_to_source_canvas failed: {e}")
@@ -2117,7 +2109,7 @@ def generate_vton():
             retry_payload.pop('category', None)
             retry_payload.pop('task_categories', None)
             retry_payload['prompt'] = (
-                f"{retry_payload.get('prompt', '')} Apply both upper and lower garments in one generation."
+                f"{retry_payload.get('prompt', '')} WARNING: You are applying BOTH an upper and lower garment at the same time. You MUST keep their colors completely separate. Do NOT mix the top and bottom colors."
             ).strip()
             print('[VTON] Full-outfit explicit fields rejected by provider; retrying with combined-garment prompt fallback.')
             submit_status, submit_body = ws_post(
