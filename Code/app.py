@@ -1434,12 +1434,13 @@ def generate_vton():
             f'Virtual try-on edit. Replace only the existing clothing with {garment_phrase}. '
             'Keep the same person, identity, face, hairstyle, body proportions, height, pose, background, camera angle, lighting, framing, and image crop. '
             'Copy the selected garment exactly from the reference image, including its exact color, pattern, texture, shape, fit, and placement. '
+            'Preserve the garment color exactly as shown in the reference image and do not borrow color from the source outfit, skin, or background. '
             'Do not change any other part of the person or scene.'
         )
 
         negative_prompt = (
             'Do not change height, body proportions, face, hairstyle, skin tone, pose, expression, background, camera angle, lighting, framing, crop, '
-            'or garment color, pattern, texture, or fit. Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, or extra clothing. '
+            'or garment color, shade, hue, saturation, pattern, texture, or fit. Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, or extra clothing. '
             'Do not create a side-by-side layout, mirrored half, cutout strip, or off-center subject.'
         )
 
