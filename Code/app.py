@@ -1437,7 +1437,7 @@ def generate_vton():
             'Only update the garments. '
             'Do not zoom in, zoom out, crop, pan, or shift the subject. Keep the exact same full-body framing and camera distance as the input image. '
             'Preserve the original canvas composition one-to-one and keep the subject centered as in the input. '
-            'CRITICAL: Maintain high color saturation and contrast for the clothing items. The colors must exactly match the provided product images for the Silk Blouse and Jeans. Do not wash out colors to match background lighting. '
+            'Preserve the exact garment colors, fabric texture, and pattern from the reference images. Do not recolor, brighten, or wash out the clothing. '
             'Ensure the output image is vertically centered and uses the full vertical height of the frame.'
         )
 
@@ -2016,26 +2016,21 @@ def generate_vton():
                     if generated_img.width == target_w and generated_img.height == target_h:
                         return rgb_image_to_data_uri_jpeg(generated_img)
 
-                    # Preserve full composition: no crop/zoom. Contain generated output and center it on source-sized canvas.
+                    # Preserve full composition: no crop/zoom. Contain generated output and center it on the original portrait canvas.
+                    canvas_size = source_rgb.size if source_rgb is not None else (target_w, target_h)
                     contain_img = ImageOps.contain(
                         generated_img,
-                        (target_w, target_h),
+                        canvas_size,
                         method=Image.Resampling.LANCZOS,
                     )
 
                     if source_rgb is not None:
-                        if source_rgb.size != (target_w, target_h):
-                            source_canvas = source_rgb.resize(
-                                (target_w, target_h),
-                                getattr(getattr(Image, 'Resampling', Image), 'LANCZOS', Image.LANCZOS),
-                            )
-                        else:
-                            source_canvas = source_rgb.copy()
+                        source_canvas = source_rgb.copy()
                     else:
-                        source_canvas = Image.new('RGB', (target_w, target_h), (245, 241, 233))
+                        source_canvas = Image.new('RGB', canvas_size, (245, 241, 233))
 
-                    offset_x = (target_w - contain_img.width) // 2
-                    offset_y = (target_h - contain_img.height) // 2
+                    offset_x = (canvas_size[0] - contain_img.width) // 2
+                    offset_y = (canvas_size[1] - contain_img.height) // 2
                     source_canvas.paste(contain_img, (offset_x, offset_y))
                     return rgb_image_to_data_uri_jpeg(source_canvas)
             except Exception as e:
