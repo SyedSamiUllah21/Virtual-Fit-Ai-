@@ -1649,6 +1649,10 @@ def generate_vton():
 
             out_w = max(768, min(2048, out_w))
             out_h = max(768, min(2048, out_h))
+
+            if out_w * out_h < min_pixels:
+                return '2048x2048'
+
             return f'{out_w}x{out_h}'
 
         resolved_edit_size = resolve_generation_size(edit_size)
