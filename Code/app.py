@@ -1433,13 +1433,14 @@ def generate_vton():
         prompt = (
             f'Virtual try-on edit. Replace only the existing clothing with {garment_phrase}. '
             'Keep the same person, identity, face, hairstyle, body proportions, height, pose, background, camera angle, lighting, framing, and image crop. '
-            'Copy the garment exactly from the reference image, including its color, pattern, texture, shape, fit, and placement. '
+            'Copy the selected garment exactly from the reference image, including its exact color, pattern, texture, shape, fit, and placement. '
             'Do not change any other part of the person or scene.'
         )
 
         negative_prompt = (
             'Do not change height, body proportions, face, hairstyle, skin tone, pose, expression, background, camera angle, lighting, framing, crop, '
-            'or garment color, pattern, texture, or fit. Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, or extra clothing.'
+            'or garment color, pattern, texture, or fit. Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, or extra clothing. '
+            'Do not create a side-by-side layout, mirrored half, cutout strip, or off-center subject.'
         )
 
         prompt_override = str(custom_prompt or '').strip()
@@ -2014,6 +2015,21 @@ def generate_vton():
 
                     return rgb_img.crop((left, top, right, bottom))
 
+                def remove_split_artifact(rgb_img, source_rgb):
+                    seam_x = find_vertical_split_seam_x(rgb_img)
+                    if seam_x is None:
+                        return rgb_img
+
+                    chosen = choose_side_by_source_similarity(rgb_img, seam_x, source_rgb) if source_rgb is not None else None
+                    if chosen is None:
+                        left_crop = rgb_img.crop((0, 0, seam_x, rgb_img.height))
+                        right_crop = rgb_img.crop((seam_x, 0, rgb_img.width, rgb_img.height))
+                        left_area = left_crop.width * left_crop.height
+                        right_area = right_crop.width * right_crop.height
+                        chosen = right_crop if right_area >= left_area else left_crop
+
+                    return chosen
+
                 with Image.open(io.BytesIO(decoded_bytes)) as generated_img:
                     generated_img = generated_img.convert('RGB')
 
@@ -2049,6 +2065,7 @@ def generate_vton():
                         if crop_top > 0:
                             generated_img = generated_img.crop((0, crop_top, generated_img.width, generated_img.height))
 
+                    generated_img = remove_split_artifact(generated_img, source_rgb)
                     generated_img = crop_subject_bounds(generated_img)
 
                     if generated_img.width == target_w and generated_img.height == target_h:
