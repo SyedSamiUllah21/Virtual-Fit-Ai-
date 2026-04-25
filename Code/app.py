@@ -1655,7 +1655,7 @@ def generate_vton():
 
             return f'{out_w}x{out_h}'
 
-        resolved_edit_size = resolve_generation_size(edit_size)
+        resolved_edit_size = '2048x2048'
 
         try:
             guidance_scale = float(os.environ.get('SEEDEDIT_GUIDANCE_SCALE', '5.5'))
