@@ -1790,6 +1790,8 @@ def generate_vton():
                     provider_max_side = 1536
                 provider_max_side = max(768, min(2048, provider_max_side))
 
+                provider_min_side = 768
+
                 try:
                     provider_jpeg_quality = int(os.environ.get('SEEDEDIT_INPUT_JPEG_QUALITY', '88'))
                 except ValueError:
@@ -1798,9 +1800,27 @@ def generate_vton():
 
                 with Image.open(io.BytesIO(decoded_bytes)) as image:
                     image = image.convert('RGB')
+                    if image.width < provider_min_side or image.height < provider_min_side:
+                        padded_width = max(image.width, provider_min_side)
+                        padded_height = max(image.height, provider_min_side)
+                        padded = Image.new('RGB', (padded_width, padded_height), (245, 241, 233))
+                        padded.paste(image, ((padded_width - image.width) // 2, (padded_height - image.height) // 2))
+                        image = padded
+
                     if max(image.size) > provider_max_side:
                         resample = getattr(getattr(Image, 'Resampling', Image), 'LANCZOS', Image.LANCZOS)
-                        image.thumbnail((provider_max_side, provider_max_side), resample)
+                        scale = provider_max_side / float(max(image.size))
+                        resized_width = max(provider_min_side, int(round(image.width * scale)))
+                        resized_height = max(provider_min_side, int(round(image.height * scale)))
+                        image = image.resize((resized_width, resized_height), resample)
+
+                    if image.width < provider_min_side or image.height < provider_min_side:
+                        padded_width = max(image.width, provider_min_side)
+                        padded_height = max(image.height, provider_min_side)
+                        padded = Image.new('RGB', (padded_width, padded_height), (245, 241, 233))
+                        padded.paste(image, ((padded_width - image.width) // 2, (padded_height - image.height) // 2))
+                        image = padded
+
                     output = io.BytesIO()
                     image.save(output, format='JPEG', quality=provider_jpeg_quality, optimize=True)
                     jpeg_b64 = base64.b64encode(output.getvalue()).decode('utf-8')
