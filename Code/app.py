@@ -1422,7 +1422,7 @@ def generate_vton():
             return match.group(1)
         return ''
 
-    def build_seededit_prompt(selected_product_names, selected_product_ids, custom_prompt=None, target_garment_text=None):
+    def build_seededit_prompts(selected_product_names, selected_product_ids, custom_prompt=None, target_garment_text=None):
         safe_names = [str(name).strip() for name in (selected_product_names or []) if str(name).strip()]
         target_text = str(target_garment_text or '').strip()
         garment_phrase = (
@@ -1430,22 +1430,23 @@ def generate_vton():
             or (', '.join(safe_names[:3]) if safe_names else ', '.join(selected_product_ids[:3]) if selected_product_ids else 'the selected garments')
         )
 
-        base_prompt = (
-            f'A photorealistic virtual try-on task. Replace the clothing with {garment_phrase}. '
-            'Maintain the exact same person, exact same body pose, exact same looking direction, exact same face, and exact same background as the input photo. '
-            'The character must remain in the exact original physical position and orientation. '
-            'Only update the garments. '
-            'Do not zoom in, zoom out, crop, pan, or shift the subject. Keep the exact same full-body framing and camera distance as the input image. '
-            'Preserve the original canvas composition one-to-one and keep the subject centered as in the input. '
-            'Preserve the exact garment colors, fabric texture, and pattern from the reference images. Do not recolor, brighten, or wash out the clothing. '
-            'Ensure the output image is vertically centered and uses the full vertical height of the frame.'
+        prompt = (
+            f'Virtual try-on edit. Replace only the existing clothing with {garment_phrase}. '
+            'Keep the same person, identity, face, hairstyle, body proportions, height, pose, background, camera angle, lighting, framing, and image crop. '
+            'Copy the garment exactly from the reference image, including its color, pattern, texture, shape, fit, and placement. '
+            'Do not change any other part of the person or scene.'
+        )
+
+        negative_prompt = (
+            'Do not change height, body proportions, face, hairstyle, skin tone, pose, expression, background, camera angle, lighting, framing, crop, '
+            'or garment color, pattern, texture, or fit. Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, or extra clothing.'
         )
 
         prompt_override = str(custom_prompt or '').strip()
         if prompt_override:
-            return f"{base_prompt} Additional user styling request: {prompt_override}"
+            prompt = f"{prompt} Additional user styling request: {prompt_override}"
 
-        return base_prompt
+        return prompt, negative_prompt
 
     def run_seededit_vton(
         user_image_data_uri,
@@ -1480,7 +1481,7 @@ def generate_vton():
             or 'https://ark.ap-southeast.bytepluses.com/api/v3/images/generations'
         ).strip()
 
-        submit_prompt = build_seededit_prompt(
+        submit_prompt, negative_prompt = build_seededit_prompts(
             selected_product_names,
             selected_product_ids,
             custom_prompt=custom_prompt,
@@ -1675,6 +1676,7 @@ def generate_vton():
         submit_payload = {
             'model': model_name,
             'prompt': submit_prompt,
+            'negative_prompt': negative_prompt,
             'response_format': response_format,
             'size': resolved_edit_size,
             'guidance_scale': guidance_scale,
