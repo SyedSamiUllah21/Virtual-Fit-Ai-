@@ -1980,6 +1980,40 @@ def generate_vton():
 
                     return top_fit if top_score <= bottom_score else bottom_fit
 
+                def crop_subject_bounds(rgb_img):
+                    gray = rgb_img.convert('L')
+                    pixels = gray.load()
+                    w, h = gray.size
+                    min_x, min_y = w, h
+                    max_x, max_y = -1, -1
+
+                    for y in range(h):
+                        for x in range(w):
+                            if pixels[x, y] < 245:
+                                if x < min_x:
+                                    min_x = x
+                                if y < min_y:
+                                    min_y = y
+                                if x > max_x:
+                                    max_x = x
+                                if y > max_y:
+                                    max_y = y
+
+                    if max_x < 0 or max_y < 0:
+                        return rgb_img
+
+                    pad_x = max(24, int(w * 0.06))
+                    pad_y = max(24, int(h * 0.06))
+                    left = max(0, min_x - pad_x)
+                    top = max(0, min_y - pad_y)
+                    right = min(w, max_x + pad_x + 1)
+                    bottom = min(h, max_y + pad_y + 1)
+
+                    if right - left < 64 or bottom - top < 64:
+                        return rgb_img
+
+                    return rgb_img.crop((left, top, right, bottom))
+
                 with Image.open(io.BytesIO(decoded_bytes)) as generated_img:
                     generated_img = generated_img.convert('RGB')
 
@@ -2015,6 +2049,8 @@ def generate_vton():
                         if crop_top > 0:
                             generated_img = generated_img.crop((0, crop_top, generated_img.width, generated_img.height))
 
+                    generated_img = crop_subject_bounds(generated_img)
+
                     if generated_img.width == target_w and generated_img.height == target_h:
                         return rgb_image_to_data_uri_jpeg(generated_img)
 
@@ -2026,10 +2062,7 @@ def generate_vton():
                         method=Image.Resampling.LANCZOS,
                     )
 
-                    if source_rgb is not None:
-                        source_canvas = source_rgb.copy()
-                    else:
-                        source_canvas = Image.new('RGB', canvas_size, (245, 241, 233))
+                    source_canvas = Image.new('RGB', canvas_size, (255, 255, 255))
 
                     offset_x = (canvas_size[0] - contain_img.width) // 2
                     offset_y = (canvas_size[1] - contain_img.height) // 2
