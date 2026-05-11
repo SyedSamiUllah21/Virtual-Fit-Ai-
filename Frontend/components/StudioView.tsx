@@ -470,8 +470,9 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
     if (manualPrompt) {
       return manualPrompt;
     }
-
-    return `Virtual try-on edit applying the ${garmentLabel}. Strictly match the exact color shade, pattern, and design of the provided reference garment. Keep identity, face, body shape, pose, and background unchanged. Preserve realistic lighting and cloth texture.`;
+    // Send a focused reinforcement prompt — the backend builds the full base prompt.
+    // This custom_prompt is appended as a "Styling note" on the backend.
+    return `Apply ${garmentLabel} only. Same person, same position, same framing, same dimensions as input. No zoom, no crop change, no duplicate panels.`;
   };
 
   const normalizeUploadForVton = (file: File): Promise<{ dataUrl: string; width: number; height: number }> => {
@@ -1118,8 +1119,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
         {/* CENTER COLUMN: Visual Studio */}
         <div className="flex-1 min-w-0 flex flex-col items-center justify-start gap-2 shrink relative bg-[#e5dfd3]/50 rounded-[3rem] p-3 lg:p-4 xl:p-5 shadow-sm border-2 border-[#d4c3b3]/70 min-h-0 overflow-x-hidden overflow-y-auto no-scrollbar">
 
-          {/* Main Huge Image Area */}
-          <div className="w-full bg-[#fffaf2] rounded-[1.75rem] overflow-hidden flex flex-col relative shadow-sm border-[2.5px] border-[#d4c3b3] group cursor-pointer h-[65vh] min-h-[400px] max-h-[700px] lg:h-[70vh] lg:max-h-[850px] xl:h-[75vh] xl:max-h-[900px]">
+          {/* Main Huge Image Area - portrait-constrained so full-body photos display correctly */}
+          <div className="w-full bg-[#fffaf2] rounded-[1.75rem] overflow-hidden flex flex-col relative shadow-sm border-[2.5px] border-[#d4c3b3] group cursor-pointer" style={{ aspectRatio: '9/14', maxHeight: '75vh', maxWidth: 'min(100%, 400px)', margin: '0 auto' }}>
             <div className="flex-1 w-full flex items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-[#8a5f3b]/[0.03] min-h-0 h-full relative overflow-hidden">
 
               {/* Base preview: uploaded photo or product image (hidden when result is ready) */}
@@ -1127,7 +1128,8 @@ const StudioView: React.FC<StudioViewProps> = ({ product, onBack, onPurchase, on
                 <img
                   src={basePreviewImage}
                   alt={product?.name || 'Placeholder'}
-                  className={`absolute inset-0 w-full h-full object-contain object-center drop-shadow-xl transition-transform duration-500 ${!uploadedImage ? 'mix-blend-multiply' : ''}`}
+                  className={`absolute inset-0 w-full h-full drop-shadow-xl transition-transform duration-500 ${!uploadedImage ? 'object-contain object-center mix-blend-multiply' : 'object-contain object-center'}`}
+                  style={{ objectFit: 'contain', objectPosition: 'center' }}
                 />
               ) : null}
 

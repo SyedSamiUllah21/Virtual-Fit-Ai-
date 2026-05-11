@@ -1431,22 +1431,25 @@ def generate_vton():
         )
 
         prompt = (
-            f'Virtual try-on edit. Replace only the existing clothing with {garment_phrase}. '
-            'Keep the same person, identity, face, hairstyle, body proportions, height, pose, background, camera angle, lighting, framing, and image crop. '
-            'Copy the selected garment exactly from the reference image, including its exact color, pattern, texture, shape, fit, and placement. '
-            'Preserve the garment color exactly as shown in the reference image and do not color-bleed. If adding both top and bottom, DO NOT mix their colors; keep them strictly separated as they appear in the reference. '
-            'Do not change any other part of the person or scene.'
+            f'Virtual try-on edit: replace ONLY the clothing on the person with {garment_phrase}. '
+            'Output a SINGLE image with EXACTLY the same canvas size, resolution, aspect ratio, framing, and crop as the input photo. '
+            'The person must appear at the exact same position, scale, and size within the frame — do NOT zoom in, zoom out, crop tighter, or reframe. '
+            'Keep identical: person identity, face, hairstyle, skin tone, body proportions, pose, expression, background, camera angle, lighting, and shadows. '
+            'Copy the selected garment precisely from the reference: exact color, pattern, texture, fit, and placement. '
+            'Do not alter any other part of the image. One single output panel only.'
         )
 
         negative_prompt = (
-            'color bleeding, color mixing between garments, recoloring, changing garment color, '
-            'changing height, body proportions, face, hairstyle, skin tone, pose, expression, background, camera angle, lighting, framing, crop, '
-            'Do not add or remove people, limbs, accessories, blur, distortion, collage, split panels, side-by-side layout, mirrored half, cutout strip, or off-center subject.'
+            'duplicate image, side-by-side panels, collage, split screen, mirrored half, two people, multiple people, '
+            'zoomed in, cropped tighter, closer framing, different crop, changing canvas size, changing resolution, '
+            'color bleeding, color mixing between garments, recoloring, '
+            'changing face, hairstyle, skin tone, body proportions, pose, expression, background, lighting, camera angle, '
+            'adding accessories, removing limbs, blur, distortion, watermark, text overlay, cutout strip, off-center subject.'
         )
 
         prompt_override = str(custom_prompt or '').strip()
         if prompt_override:
-            prompt = f"{prompt} Additional user styling request: {prompt_override}"
+            prompt = f"{prompt} Styling note: {prompt_override}"
 
         return prompt, negative_prompt
 
